@@ -14,7 +14,7 @@
 #define BACK_IR 5
 
 // ---------------- MOTOR DRIVER ----------------
-// L298N / similar dual H-bridge
+
 #define ENA 6
 #define IN1 7
 #define IN2 8
