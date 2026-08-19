@@ -4,12 +4,14 @@
 #include <Servo.h>
 
 // =====================================================
-// NYX V3 - PRESENTATION DEMO MODE
-// Uses existing NYX V2 eye designs only.
-// No ultrasonic sensor or wheel movement required.
-// Sensor/movement events are simulated for demonstration.
+// NYX V3 - HARDWARE-LIMITED DEMO
+// Real ultrasonic sensing + existing NYX eye designs.
+// Body/wheel movement is NOT used because the movement
+// hardware/battery is unavailable.
 // =====================================================
 
+#define TRIG_PIN 2
+#define ECHO_PIN 3
 #define PAN_SERVO 9
 #define TILT_SERVO 10
 
@@ -28,14 +30,17 @@ const int LEFT_PAN = 72;
 const int RIGHT_PAN = 108;
 const int CENTER_TILT = 90;
 const int CURIOUS_TILT = 105;
-const int FRONT_TILT = 84;
-const int BACK_TILT = 96;
+
+const float OBJECT_DISTANCE_CM = 40.0;
 
 // =====================================================
 // SETUP
 // =====================================================
 void setup() {
   Serial.begin(9600);
+
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
 
   panServo.attach(PAN_SERVO);
   tiltServo.attach(TILT_SERVO);
@@ -50,151 +55,140 @@ void setup() {
   display.clearDisplay();
   display.display();
 
-  Serial.println("NYX V3 DEMO MODE READY");
-  Serial.println("Movement and ultrasonic sensing are simulated.");
+  Serial.println("=================================");
+  Serial.println("NYX V3 REAL SENSOR DEMO");
+  Serial.println("Ultrasonic: ACTIVE");
+  Serial.println("Body movement: DISABLED");
+  Serial.println("=================================");
 
   normalEyes();
   delay(1000);
 }
 
 // =====================================================
-// MAIN DEMO SEQUENCE
+// MAIN LOOP
 // =====================================================
 void loop() {
-  demoClearPath();
-  demoObjectDetected();
-  demoClearPath();
-  demoFrontEdge();
-  demoClearPath();
-  demoBackEdge();
-  demoIdle();
+  float distance = getDistanceCM();
+
+  Serial.print("Distance: ");
+  if (distance < 0) {
+    Serial.println("No valid reading");
+  } else {
+    Serial.print(distance, 1);
+    Serial.println(" cm");
+  }
+
+  // Real ultrasonic detection
+  if (distance > 0 && distance <= OBJECT_DISTANCE_CM) {
+    objectDetected(distance);
+  } else {
+    clearPath(distance);
+  }
+
+  delay(150);
 }
 
 // =====================================================
-// DEMO: CLEAR PATH
+// REAL HC-SR04 DISTANCE MEASUREMENT
 // =====================================================
-void demoClearPath() {
-  Serial.println("\n[DEMO] CLEAR PATH");
-  Serial.println("Simulated distance: 80 cm");
-  Serial.println("Simulated action: MOVING FORWARD");
+float getDistanceCM() {
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
 
-  normalEyes();
-  smoothTilt(CENTER_TILT);
-  smoothPan(CENTER_PAN);
-  delay(1800);
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+
+  unsigned long duration = pulseIn(ECHO_PIN, HIGH, 30000UL);
+
+  if (duration == 0) {
+    return -1;
+  }
+
+  // Sound travels to the object and back, so divide by 2.
+  float distance = duration * 0.0343 / 2.0;
+  return distance;
 }
 
 // =====================================================
-// DEMO: OBJECT DETECTED
+// OBJECT DETECTED - REAL SENSOR INPUT
 // =====================================================
-void demoObjectDetected() {
-  Serial.println("\n[DEMO] OBJECT DETECTED");
-  Serial.println("Simulated distance: 25 cm");
-  Serial.println("Action: STOP BODY (SIMULATED)");
-  Serial.println("Expression: CURIOUS");
+void objectDetected(float distance) {
+  Serial.println("OBJECT DETECTED");
+  Serial.print("Real distance: ");
+  Serial.print(distance, 1);
+  Serial.println(" cm");
+  Serial.println("Body action: STOPPED / NOT CONNECTED");
+  Serial.println("Head action: CURIOUS");
 
   curiousEyes();
   smoothPan(CENTER_PAN);
   smoothTilt(CURIOUS_TILT);
-  delay(1200);
-
-  Serial.println("Action: LOOK LEFT");
-  lookLeft();
-  smoothPan(LEFT_PAN);
-  delay(900);
-
-  Serial.println("Action: LOOK RIGHT");
-  lookRight();
-  smoothPan(RIGHT_PAN);
-  delay(900);
-
-  normalEyes();
-  smoothPan(CENTER_PAN);
-  smoothTilt(CENTER_TILT);
-}
-
-// =====================================================
-// DEMO: FRONT EDGE
-// =====================================================
-void demoFrontEdge() {
-  Serial.println("\n[DEMO] FRONT EDGE DETECTED");
-  Serial.println("Simulated Front IR: DETECTED");
-  Serial.println("Action: STOP BODY (SIMULATED)");
-  Serial.println("Action: REVERSE + TURN (SIMULATED)");
-  Serial.println("Expression: WORRIED");
-
-  worriedEyes();
-  smoothPan(CENTER_PAN);
-  smoothTilt(FRONT_TILT);
-  delay(1200);
-
-  Serial.println("Action: RETURN TO SAFE POSITION");
-  normalEyes();
-  smoothTilt(CENTER_TILT);
-  smoothPan(RIGHT_PAN);
-  delay(700);
-  smoothPan(CENTER_PAN);
-  delay(700);
-}
-
-// =====================================================
-// DEMO: BACK EDGE
-// =====================================================
-void demoBackEdge() {
-  Serial.println("\n[DEMO] BACK EDGE DETECTED");
-  Serial.println("Simulated Back IR: DETECTED");
-  Serial.println("Action: STOP BODY (SIMULATED)");
-  Serial.println("Action: MOVE FORWARD + TURN (SIMULATED)");
-  Serial.println("Expression: WORRIED");
-
-  worriedEyes();
-  smoothPan(CENTER_PAN);
-  smoothTilt(BACK_TILT);
-  delay(1200);
-
-  Serial.println("Action: RETURN TO SAFE POSITION");
-  normalEyes();
-  smoothTilt(CENTER_TILT);
-  smoothPan(LEFT_PAN);
-  delay(700);
-  smoothPan(CENTER_PAN);
-  delay(700);
-}
-
-// =====================================================
-// DEMO: IDLE BEHAVIOUR
-// =====================================================
-void demoIdle() {
-  Serial.println("\n[DEMO] AUTONOMOUS IDLE BEHAVIOUR");
-
-  normalEyes();
-  delay(700);
-
-  blinkEyes();
   delay(500);
 
+  // Look toward the detected object.
   lookLeft();
   smoothPan(LEFT_PAN);
-  delay(900);
-
-  normalEyes();
-  smoothPan(CENTER_PAN);
-  delay(700);
+  delay(500);
 
   lookRight();
   smoothPan(RIGHT_PAN);
-  delay(900);
+  delay(500);
 
   normalEyes();
   smoothPan(CENTER_PAN);
-  delay(700);
+  smoothTilt(CENTER_TILT);
+}
 
-  superHappyEyes();
-  delay(900);
+// =====================================================
+// CLEAR PATH
+// =====================================================
+void clearPath(float distance) {
   normalEyes();
+  smoothPan(CENTER_PAN);
+  smoothTilt(CENTER_TILT);
 
-  Serial.println("Demo cycle complete. Restarting...");
-  delay(1200);
+  if (distance < 0) {
+    Serial.println("Clear/No echo - continuing head idle behaviour");
+  } else {
+    Serial.print("Clear path: ");
+    Serial.print(distance, 1);
+    Serial.println(" cm");
+  }
+
+  // Since the body cannot move, demonstrate movement intent
+  // through the serial monitor and head behaviour only.
+  static unsigned long lastIdle = 0;
+  if (millis() - lastIdle > 2500) {
+    lastIdle = millis();
+    idleBehaviour();
+  }
+}
+
+// =====================================================
+// IDLE BEHAVIOUR
+// =====================================================
+void idleBehaviour() {
+  Serial.println("Idle: body movement would be FORWARD");
+
+  blinkEyes();
+  delay(300);
+
+  lookLeft();
+  smoothPan(LEFT_PAN);
+  delay(500);
+
+  normalEyes();
+  smoothPan(CENTER_PAN);
+  delay(300);
+
+  lookRight();
+  smoothPan(RIGHT_PAN);
+  delay(500);
+
+  normalEyes();
+  smoothPan(CENTER_PAN);
 }
 
 // =====================================================
@@ -206,12 +200,12 @@ void smoothPan(int target) {
   if (currentPan < target) {
     for (int pos = currentPan; pos <= target; pos++) {
       panServo.write(pos);
-      delay(20);
+      delay(15);
     }
   } else {
     for (int pos = currentPan; pos >= target; pos--) {
       panServo.write(pos);
-      delay(20);
+      delay(15);
     }
   }
   currentPan = target;
@@ -226,19 +220,20 @@ void smoothTilt(int target) {
   if (currentTilt < target) {
     for (int pos = currentTilt; pos <= target; pos++) {
       tiltServo.write(pos);
-      delay(20);
+      delay(15);
     }
   } else {
     for (int pos = currentTilt; pos >= target; pos--) {
       tiltServo.write(pos);
-      delay(20);
+      delay(15);
     }
   }
   currentTilt = target;
 }
 
 // =====================================================
-// EXISTING NYX EYE DESIGNS FROM V2
+// EXISTING NYX EYE DESIGNS
+// Kept from the existing NYX implementation.
 // =====================================================
 void drawEye(int x, int y, int w, int h) {
   display.fillRoundRect(x, y, w, h, 12, SSD1306_WHITE);
