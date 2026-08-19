@@ -3,10 +3,7 @@
 #include <Adafruit_SSD1306.h>
 #include <Servo.h>
 
-// =====================================================
-// NYX V3 - FINAL INTEGRATED VERSION
-// Sensors + Head Movement + Body Movement + OLED Face
-// =====================================================
+
 
 // ---------------- ULTRASONIC ----------------
 #define TRIG_PIN 2
